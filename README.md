@@ -3,7 +3,7 @@ Simple mp3 file analyzer
 
 
 # About
-I listen to mp3 files. Some files have suffer from bit-rot or something else that causes disruption when playing back the music. After reading up on MPEG file format ( and id3v2 ) i come to the conclusion that missing MPEG header in file makes this sound. A MPEG file is built up by frames, each frame have a header and compressed audio data.
+I listen to mp3 files. Some files have suffer from bit-rot or something else that causes disruption when playing back the music. After reading up on MPEG file format ( and id3v2 ) i come to the conclusion that missing MPEG header in file makes this sound. A MPEG file is built up by frames, each frame have a header and compressed audio data, losing one or more frames can generate this disruptions.  
 At least this is what i think.  
 
 This was the main goal, to find out if a mp3 file has this error makeing it 'scratch' at playback. But i thought it would be neat if it also could parse TAGs and maybe remove empty tags, add album art, rename files after a given pattern etc. And this is something i want to add when i find the time :)  
