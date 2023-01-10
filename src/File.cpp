@@ -11,14 +11,14 @@ FileWrapper::FileWrapper(std::filesystem::path path)
   m_path = path;
 
   // m_FileHandleHandle = fopen(path.c_str(), readOnly ? "rb" : "rb+");
-  debug(LOG_VERBOSE) << "File: Opening file" << std::endl;
+  debug(LOG_VERBOSE) << "Opening file " << path << std::endl;
   m_filestream = openFile(path);
 }
 
 FileWrapper::~FileWrapper()
 {
   if(m_filestream){
-    debug(LOG_VERBOSE) << "File: Closing file" << std::endl;
+    debug(LOG_VERBOSE) << "Closing file " << m_path << std::endl;
     fclose(m_filestream);
   }
 }

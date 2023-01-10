@@ -11,14 +11,13 @@
 #include "logger.hpp"
 
 
-
 // Set log level
 // unsigned GlobalLogLevel = LOG_VERBOSE;
 unsigned GlobalLogLevel = LOG_INFO;
 // unsigned GlobalLogLevel = LOG_WARNING;
 // unsigned GlobalLogLevel = LOG_ERROR;
 // unsigned GlobalLogLevel = LOG_SILENT;
-// unsigned GlobalLogLevel = LOG_DEBUG;
+
 
 void version() {
   std::cout << "MP3Crawler 1.0" << std::endl;
@@ -29,16 +28,11 @@ void usage()
 {
     std::cout << "\nUsage:\tMP3Crawler [OPTIONS]...  FILE|PATH" << std::endl;
     std::cout << "Batchmode will only output one line per file with information" << std::endl;
-    std::cout << "  -b,\t\t--batch\t\t\tStops batchmode for multiple files and will show full information" << std::endl;
+    std::cout << "  -n,\t\t--nobatch\t\t\tStops batchmode for multiple files and will show full information" << std::endl;
     std::cout << "  -c <path>,\t\t--config <path>\t\tpath to config file describeing action to be taken" << std::endl;
     std::cout << "  -e <path>,\t--erroroutput <path>\tPuts full path of the files giving errors into a file" << std::endl;
     std::cout << "  -l,\t\t--log <1-6>\t\tdetermines the log level (see log levels below) thats get printed" << std::endl;
     std::cout << "  -r,\t\t--recursive\t\tRecursivly going trought given path" << std::endl;
-
-    // Ska jag ha kvar denna option? kalla det ngt annat? default när man använder error output file?
-    // TODO:
-    std::cout << "  -s,\t\t--silent\t\tonly progress is shown. Only for batchmode and when outputing error file" << std::endl;
-    // ??
 
     std::cout << "  -p,\t\t--playback\t\tplays the audio from the mp3 file" << std::endl;
     std::cout << "  -d,\t\t--dontstop\t\tDont stop at first bad frame, cuntinue analyzeing. Only for batchmode" << std::endl;
@@ -47,25 +41,29 @@ void usage()
     std::cout << "Loglevels:" << std::endl;
     std::cout << "\t1: Error" << std::endl;
     std::cout << "\t2: Errors and Warnings" << std::endl;
-    std::cout << "\t3: Errors and Warnings and information" << std::endl;
-    std::cout << "\t4: Errors and Warnings and Information and Verbos errors" << std::endl;
-    std::cout << "\t5: All\n" << std::endl;
+    std::cout << "\t3: Errors and Warnings and information (default)" << std::endl;
+    std::cout << "\t4: Errors and Warnings and Information and Verbos" << std::endl;
+
     // TODO: Info about config file ??
 
 }
 
 /*
+  (new) WORKFLOW:
+    Given one file, the program gives a summary (either normal summary or verbose summary).
+    Given two files, the program gives out a comparision between the two
+    Given more then two filer, the program gives ut bulk-mode information
+
   TODO:
    MAJOR:
     * history, a temporary locale file thats keeps the hashes of the known good files. so when it runs again, it wont check thoes
       and a option for ingnoring history and re-scan
-    * FASTMODE, Only find first valid MPEG frame, then check for missing header errors, repeat
     * Profiler? to make it faster..
 
   MINOR:
     * Tidy up File.hpp/cpp , implement and test write functions etc.
     * Tidy up argument/config hanteraren
-    * Process indecation? 24/144 files counter or something?
+    * Process indekation? 24/144 files counter or something?
     * Better visualized seperation between files, se running multiple files with -b
     * Add as options:
         + path to configuration file that describe how to manage the mp3 files, rename,
@@ -81,14 +79,16 @@ void usage()
       + Add high quality album artwork
       + Use different name patterns for single artist albums, compilation albums and single tracks
 
-  TEST: Går det att fixa dessa miss ljud genom att ta 'sy ihop' dom fungerande frames en?
-        Alltså flytta nästa valid frame till den plats som den 'ska vara'
+  TEST:
+    Går det att fixa dessa miss ljud genom att ta 'sy ihop' dom fungerande frames en?
+    Alltså flytta nästa valid frame till den plats som den 'ska vara'
 
   BUGG:
     + Vid Batchmode output så blir det något fel med std::setw eller std::left eller nått, för
      när det kommer en fil med ÅÄÖ i sig så blir det inte lika "brätt" till ':OK' outputen
      (se: https://stackoverflow.com/questions/22040052/stdsetw-considering-special-characters-as-two-characters)
 
+    + ~/Mp3/Game\ OST/MP3/Sanitarium/01\ -\ track\ 01.mp3 gibes sample rate error and does not preocess even though audacious plays it
 
   Fundering:
 
@@ -131,6 +131,12 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
   // the user including the name of the program. So if we pass a value to a program,
   // value of argc would be 2 (one for argument and one for program name)
 
+  // If we got no arguments we exit
+  if(argc == 1){
+    std::cout << "No arguments" << std::endl;
+    return 0;
+  }
+
   // The variable optind is the index of the next element to be processed in argv.
   // The system initializes this value to 1. The caller can reset it to 1 to restart
   // scanning of the same argv, or when scanning a new argument vector.
@@ -152,7 +158,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
     {
       {"help",    no_argument, 0, 'h'}, // Print out usage
       {"version", no_argument, 0, 'V'}, // Print out version
-      {"batch", no_argument, 0, 'b'},
+      {"nobatch", no_argument, 0, 'n'},
       {"erroroutput",   required_argument, 0, 'e'},
       {"config",   required_argument, 0, 'c'},
       {"log",   required_argument, 0, 'l'},
@@ -163,7 +169,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
     };
 
   // Short options (note: No short options for version, help)
-  const char* short_options="bcelprd";
+  const char* short_options="ncelprd";
 
   int c;
   int option_index = -1;
@@ -181,7 +187,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
     {
         case 'h': { usage(); break; }
         case 'V': { version(); break; }
-        case 'b': { cfg.stopbatchmode = true; break; }
+        case 'n': { cfg.stopbatchmode = true; break; }
         case 'c': { std::cout << "config option!" << std::endl; break; }
         case 'e': {
 
@@ -209,7 +215,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
             optind++; // ..and move index forward
           }
 
-          if(value > 0 && value < 6) {
+          if(value >= 0 && value <= 6) {
             cfg.loglevel = value;
           } else {
             debug(LOG_WARNING) << "Invalid log level given, going with default log level " << cfg.loglevel << std::endl;
@@ -281,6 +287,12 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
 
   }
 
+  if(queue.size() < 2)
+    cfg.batchmode = false;
+
+  if(queue.empty())
+    debug(LOG_INFO) << "No files found!" << std::endl;
+
   return 1;
 };
 
@@ -297,35 +309,40 @@ int main(int argc, char *argv[])
     // Now we should have a config with settings and que with one or more paths
 
     if(queue.size() == 1) {
-      // In single file analyze, always process the whole file
-      cfg.stoponerror = false;
+
       MP3 mp3(queue[0], cfg);
 
     } else {
 
-      // Force batchmode if more then one input file
-      if(!cfg.stopbatchmode)
-        cfg.batchmode = true;
+      // Force stop on batchmode
+      if(cfg.stopbatchmode)
+        cfg.batchmode = false;
 
       for(auto p : queue){
         MP3 mp3(p, cfg);
 
-        // Create error output file if none exists
+
+        // Create error output file options is set
         if(cfg.erroroutput) {
 
-          if(mp3.hasBadFrames() && !cfg.errorourputStream){
+          if(mp3.errors){
+            // This file has errors!
 
-            cfg.errorourputStream = new std::ofstream(cfg.erroroutputpath.c_str());
+            // Check if we have an output stream
+            if(!cfg.errorourputStream) {
+              cfg.errorourputStream = new std::ofstream(cfg.erroroutputpath.c_str());
 
-            // Check for errors ..
-            if((cfg.errorourputStream->rdstate() & std::ofstream::failbit) != 0) {
-              cfg.erroroutput = false;
-              debug(LOG_ERROR) << "Failed creating output file.." << std::endl;
+              // Check for errors ..
+              if((cfg.errorourputStream->rdstate() & std::ofstream::failbit) != 0) {
+                cfg.erroroutput = false;
+                debug(LOG_ERROR) << "Failed creating output file.." << std::endl;
+              }
             }
-          // else print out to stream
-          } else if(mp3.hasBadFrames() && cfg.errorourputStream) {
+
             // Give absolute path to ouput stream
-            *cfg.errorourputStream << std::filesystem::absolute(mp3.getPath()).string() << std::endl;
+            if(cfg.errorourputStream)
+              *cfg.errorourputStream << std::filesystem::absolute(mp3.getPath()).string() << std::endl;
+
           }
         }
 

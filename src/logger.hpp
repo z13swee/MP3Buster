@@ -4,13 +4,11 @@
 #include <iostream>
 #include <sstream>
 
-#define LOG_SILENT 0
-#define LOG_ERROR 1
-#define LOG_WARNING 2
-#define LOG_INFO 3
-#define LOG_VERBOS_ERROR 4
-#define LOG_VERBOSE 5
-#define LOG_DEBUG 6
+#define LOG_SILENT 0    // Can be used to only output to a file with no log output
+#define LOG_ERROR 1     // Errors
+#define LOG_WARNING 2   // Errors and Warnings
+#define LOG_INFO 3      // Errors and Warnings and Info
+#define LOG_VERBOSE 4   // Errors and Warnings and Info and Verbose
 
 #define LOG_DEFAULT 3
 
@@ -53,13 +51,11 @@ class logger {
     // TODO: Get only filename and add to error:     <filename>:<line> -
 
     switch (m_loglevel) {
+      case 0: { break; }
       case 1: { m_Stream << BSLOG_ERROR << "  " << thing; break; }
       case 2: { m_Stream << BSLOG_WARNING << "  " << thing; break; }
       case 3: { m_Stream << BSLOG_INFO << "  " << thing; break; }
-      case 4: { m_Stream << BSLOG_VERBOSE_ERROR << "  " << thing; break; }
-      case 5: { m_Stream << BSLOG_VERBOSE << "  " << thing; break; }
-      // case 6: { m_Stream << BSLOG_DEBUG << " "<< m_file << ":" << m_line << "  " << thing; break; }
-      case 6: { m_Stream << BSLOG_DEBUG << " " << thing; break; }
+      case 4: { m_Stream << BSLOG_VERBOSE << "  " << thing; break; }
     }
 
     return m_Stream;

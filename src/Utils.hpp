@@ -16,7 +16,7 @@ struct myConfig {
   int loglevel = 3;
   bool playback = false;
   bool stoponerror = true;
-  bool batchmode = false;
+  bool batchmode = true;        // Can be disabled with flag
   bool stopbatchmode = false;   // Used for forcing a stop on batchmode
   bool recursive = false;
   bool erroroutput = false;
