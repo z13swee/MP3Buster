@@ -163,27 +163,57 @@ void MP3::CalculateDuration()
 
   if (mpegHeader.VBRIHeader && mpegHeader.VBRI_frames != -1)
   {
-    if (mpegHeader.VBRI_bytes == -1)
+    if (mpegHeader.VBRI_bytes == -1) {
+      debug(LOG_WARNING) << "VBRI header does not include byte size. Using filesize instead." << std::endl;
       mpegHeader.VBRI_bytes = m_File->getSize();
+    }
+      
 
-    // if (mpegHeader.VBRI_frames != -1)
+    // if (mpegHeader.VBRI_frames == -1)
     //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
+
     m_DurationInSeconds = mpegHeader.samplesPerFrame * mpegHeader.VBRI_frames / mpegHeader.samplingRate;
     int min = m_DurationInSeconds / 60;
     int sec = m_DurationInSeconds % 60;
 
-    std::cout << "(VBR)Estimate length: " <<  std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    debug(LOG_INFO) << "Estimate duration (VBRI): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    // std::cout << "(VBRI)Estimate length: " <<  std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    return;
+  }
+
+
+
+  if (mpegHeader.xingHeader && mpegHeader.xing_frames != -1)
+  {
+    if (mpegHeader.xing_bytes == -1) {
+      debug(LOG_WARNING) << "Xing header does not include byte size. Using filesize instead." << std::endl;
+      mpegHeader.xing_bytes = m_File->getSize();
+    }
+      
+
+    // if (mpegHeader.VBRI_frames == -1)
+    //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
+
+    m_DurationInSeconds = mpegHeader.samplesPerFrame * mpegHeader.xing_frames / mpegHeader.samplingRate;
+    int min = m_DurationInSeconds / 60;
+    int sec = m_DurationInSeconds % 60;
+
+    debug(LOG_INFO) << "Estimate duration (XING): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    // std::cout << "(XING)Estimate length: " <<  std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
     return;
   }
 
   // The calculation for CBR (ConstantBitRate) MP3 is straightforward:
   // Duration (seconds) = File Size (bits) / Bitrate (bits/second)
+  // This estimate can be trhouwn off by ex. tags?
 
   unsigned FileSizeInBits = m_File->getSize()*8;
   m_DurationInSeconds = FileSizeInBits  / (mpegHeader.bitrate*1000);
   int min = m_DurationInSeconds / 60;
   int sec = m_DurationInSeconds % 60;
-  std::cout << "(CBR)Estimate length: " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+
+  debug(LOG_INFO) << "Estimate duration (CBR): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+  // std::cout << "(CBR)Estimate length: " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
 
 }
 

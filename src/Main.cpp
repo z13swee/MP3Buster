@@ -108,6 +108,13 @@ void usage()
    Kolla på PCM på framen före, under och efter bad frame på båda dessa filer,
    så kanske man kan se en skillnad som kan berätta ifall det orsakar en EEK ?
 
+   Xing visar antal frames som ex. 1031, men jag räknar till 1032. Är det för att xing
+   uptar en tom mpeg frame och räknar inte med den? (testat på jamp3-test/mp3/vbr/abr032.mp3)
+
+   Nu uppskattas längden på ljudet utifrån första mpeg frame (VBRI,Xing eller CBR)
+   Och detta är bra vid "fast mode", men kanske korrekt läsa längden av ljudet när
+   hela filen läses? räkna ihop alla frame size * bitrate??
+
 */
 
 void AddToQue(std::filesystem::path path, myConfig& cfg, std::vector<std::filesystem::path>& queue) {
