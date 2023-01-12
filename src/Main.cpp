@@ -117,6 +117,34 @@ void usage()
 
 */
 
+// MAD_FLAG_LSF_EXT	= 0x1000,	/* lower sampling freq. extension */
+// MAD_LAYER_III =
+//
+// # define MAD_NSBSAMPLES(header)  \
+//   ( (header)->layer == MAD_LAYER_I ? 12 :  ( ((header)->layer == MAD_LAYER_III &&  ((header)->flags & MAD_FLAG_LSF_EXT)) ? 18 : 36 ) )
+//
+//   så, antingen 12,18,36.
+//
+//   Layer1 = 12
+//   Layer2 = 18
+//   layer3 = 36
+//
+//
+//   mad timer calculation (per frame?)
+//
+//   # define MAD_TIMER_RESOLUTION	352800000UL
+//
+//   # define MAD_NSBSAMPLES(header)  \
+//     ((header)->layer == MAD_LAYER_I ? 12 :  \
+//      (((header)->layer == MAD_LAYER_III &&  \
+//        ((header)->flags & MAD_FLAG_LSF_EXT)) ? 18 : 36))
+//
+//
+//
+//   numer = 32 * MAD_NSBSAMPLES(header)
+//   fraction = numer * (MAD_TIMER_RESOLUTION / 44100(samplerate));
+
+
 void AddToQue(std::filesystem::path path, myConfig& cfg, std::vector<std::filesystem::path>& queue) {
   // TODO: Check content if this realy is a mp3 file. Now we only go by extension
   std::string ext = path.extension().string();

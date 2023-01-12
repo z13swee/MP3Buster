@@ -3,6 +3,8 @@
 #define PI    3.141592653589793
 #define SQRT2 1.414213562373095
 
+#define MAD_TIMER_RESOLUTION	352800000UL
+
 MP3::MP3(std::filesystem::path path, myConfig& config)
 {
 
@@ -167,7 +169,7 @@ void MP3::CalculateDuration()
       debug(LOG_WARNING) << "VBRI header does not include byte size. Using filesize instead." << std::endl;
       mpegHeader.VBRI_bytes = m_File->getSize();
     }
-      
+
 
     // if (mpegHeader.VBRI_frames == -1)
     //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
@@ -189,7 +191,7 @@ void MP3::CalculateDuration()
       debug(LOG_WARNING) << "Xing header does not include byte size. Using filesize instead." << std::endl;
       mpegHeader.xing_bytes = m_File->getSize();
     }
-      
+
 
     // if (mpegHeader.VBRI_frames == -1)
     //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
@@ -293,6 +295,17 @@ void MP3::Analyze()
 
         }
 
+        // TESTING
+        int nn = 0;
+
+        switch (mpegHeader.layer) {
+          case 1: nn = 12; break;
+          case 2: nn = 18; break;
+          case 3: nn = 36; break;
+        }
+
+        madTimeTest += (32 * nn ) * (MAD_TIMER_RESOLUTION / mpegHeader.samplingRate);
+
         // Decode frame data
         if(cfg.playback) {
           debug(LOG_VERBOSE) <<  "init_frame_params @ " << CurrentHeaderOffset << std::endl;
@@ -331,6 +344,8 @@ void MP3::Analyze()
 
     }
   }
+
+  std::cout << "madTimeTest: " << madTimeTest << std::endl;
 
   if(handle) {
     snd_pcm_drain(handle);
@@ -876,6 +891,7 @@ int MP3::InitializeHeader(FileWrapper* file) {
 
   mpegHeader.isHeaderValid = true;
   offsetToNextValidFrame = CurrentHeaderOffset + mpegFrame.frame_size;
+
 
   return 1;
 }

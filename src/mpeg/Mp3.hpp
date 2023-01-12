@@ -212,6 +212,8 @@ public:
   MPEGHeader mpegHeader;
   MPEGFrame mpegFrame;
 
+  unsigned long madTimeTest = 0;
+
   // MPEG Header
   // -----------
   // bool isHeaderValid = false;
