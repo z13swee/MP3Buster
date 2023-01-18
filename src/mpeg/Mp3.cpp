@@ -152,7 +152,7 @@ inline bool MP3::isFrameSync(const std::vector<uint8_t> &bytes, unsigned int off
 }
 
 
-void MP3::CalculateDuration()
+void MP3::EstimateDuration()
 {
   // The calculation for VBR MP3 is a little complicated:
   // Duration (seconds) = Samples Per Frame * Total Frames (samples) / Sample Rate (samples/second)
@@ -170,20 +170,17 @@ void MP3::CalculateDuration()
       mpegHeader.VBRI_bytes = m_File->getSize();
     }
 
-
     // if (mpegHeader.VBRI_frames == -1)
     //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
 
-    m_DurationInSeconds = mpegHeader.samplesPerFrame * mpegHeader.VBRI_frames / mpegHeader.samplingRate;
-    int min = m_DurationInSeconds / 60;
-    int sec = m_DurationInSeconds % 60;
+    estimatedDuration.raw = mpegHeader.samplesPerFrame * mpegHeader.VBRI_frames / mpegHeader.samplingRate;
+    estimatedDuration.minutes = estimatedDuration.raw  / 60;
+    estimatedDuration.seconds = (int)estimatedDuration.raw  % 60;
 
-    debug(LOG_INFO) << "Estimate duration (VBRI): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
-    // std::cout << "(VBRI)Estimate length: " <<  std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    debug(LOG_INFO) << "Estimate duration (VBRI): " << std::setfill('0') << std::setw(2) << estimatedDuration.minutes << ":"
+                                                    << std::setfill('0') << std::setw(2) << estimatedDuration.seconds << std::endl;
     return;
   }
-
-
 
   if (mpegHeader.xingHeader && mpegHeader.xing_frames != -1)
   {
@@ -192,16 +189,15 @@ void MP3::CalculateDuration()
       mpegHeader.xing_bytes = m_File->getSize();
     }
 
-
     // if (mpegHeader.VBRI_frames == -1)
     //   mpegHeader.VBRI_frames = m_File->getSize() / Average frame size??;
 
-    m_DurationInSeconds = mpegHeader.samplesPerFrame * mpegHeader.xing_frames / mpegHeader.samplingRate;
-    int min = m_DurationInSeconds / 60;
-    int sec = m_DurationInSeconds % 60;
+    estimatedDuration.raw  = mpegHeader.samplesPerFrame * mpegHeader.xing_frames / mpegHeader.samplingRate;
+    estimatedDuration.minutes = estimatedDuration.raw  / 60;
+    estimatedDuration.seconds = (int)estimatedDuration.raw  % 60;
 
-    debug(LOG_INFO) << "Estimate duration (XING): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
-    // std::cout << "(XING)Estimate length: " <<  std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+    debug(LOG_INFO) << "Estimate duration (XING): " << std::setfill('0') << std::setw(2) << estimatedDuration.minutes << ":"
+                                                    << std::setfill('0') << std::setw(2) << estimatedDuration.seconds << std::endl;
     return;
   }
 
@@ -210,12 +206,12 @@ void MP3::CalculateDuration()
   // This estimate can be trhouwn off by ex. tags?
 
   unsigned FileSizeInBits = m_File->getSize()*8;
-  m_DurationInSeconds = FileSizeInBits  / (mpegHeader.bitrate*1000);
-  int min = m_DurationInSeconds / 60;
-  int sec = m_DurationInSeconds % 60;
+  estimatedDuration.raw  = FileSizeInBits  / (mpegHeader.bitrate*1000);
+  estimatedDuration.minutes = estimatedDuration.raw  / 60;
+  estimatedDuration.seconds = (int)estimatedDuration.raw  % 60;
 
-  debug(LOG_INFO) << "Estimate duration (CBR): " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
-  // std::cout << "(CBR)Estimate length: " << std::setfill('0') << std::setw(2) << min << ":" << std::setfill('0') << std::setw(2) << sec << std::endl;
+  debug(LOG_INFO) << "Estimate duration (CBR): " << std::setfill('0') << std::setw(2) << estimatedDuration.minutes  << ":"
+                                                 << std::setfill('0') << std::setw(2) << estimatedDuration.seconds << std::endl;
 
 }
 
@@ -255,7 +251,7 @@ void MP3::Analyze()
           firstvalidframe = i;
           debug(LOG_VERBOSE) << "FIST VALID FRAME FOUND AT: " << firstvalidframe << std::endl;
 
-          CalculateDuration();
+          EstimateDuration();
 
           // Print some info about first frame data
           printHeaderInformation(LOG_INFO);
@@ -306,6 +302,11 @@ void MP3::Analyze()
 
         madTimeTest += (32 * nn ) * (MAD_TIMER_RESOLUTION / mpegHeader.samplingRate);
 
+        // Only works if we read the whole file
+        calculatedDuration.raw += ((float)mpegHeader.samplesPerFrame / (float)mpegHeader.samplingRate);
+
+        // END TESTING
+
         // Decode frame data
         if(cfg.playback) {
           debug(LOG_VERBOSE) <<  "init_frame_params @ " << CurrentHeaderOffset << std::endl;
@@ -345,7 +346,23 @@ void MP3::Analyze()
     }
   }
 
-  std::cout << "madTimeTest: " << madTimeTest << std::endl;
+  // Show calculated duration if we have read the whole file with no errors, or
+  // with errors when cfg.stoponerror is set to false
+  if(cfg.stoponerror && !errors || !cfg.stoponerror) {
+    calculatedDuration.hours = (calculatedDuration.raw / 60.f) / 60;
+    calculatedDuration.seconds = (int)calculatedDuration.raw % 60;
+    calculatedDuration.minutes = calculatedDuration.raw / 60;
+
+    if(calculatedDuration.hours > 0) {
+      debug(LOG_INFO) << "Calculated duration: " << std::setfill('0') << std::setw(2) << calculatedDuration.hours << ":"
+                                                  << std::setfill('0') << std::setw(2) << calculatedDuration.minutes << ":"
+                                                  << std::setfill('0') << std::setw(2) << calculatedDuration.seconds << std::endl;
+    } else {
+      debug(LOG_INFO) << "Calculated duration: "  << std::setfill('0') << std::setw(2) << calculatedDuration.minutes << ":"
+                                                  << std::setfill('0') << std::setw(2) << calculatedDuration.seconds << std::endl;
+    }
+  }
+
 
   if(handle) {
     snd_pcm_drain(handle);
@@ -466,16 +483,16 @@ int MP3::InitializeHeader(FileWrapper* file) {
   mpegHeader.bitrate = bitrates[versionIndex][layerIndex][bitrateIndex];
 
 
-  if(prevBitrate == -1 )
-    prevBitrate = mpegHeader.bitrate;
+  // if(prevBitrate == -1 )
+  //   prevBitrate = mpegHeader.bitrate;
 
   // std::cout << "Bitrate: " << mpegHeader.bitrate << " prevBitrate;" << prevBitrate << std::endl;
-  if(mpegHeader.bitrate != prevBitrate && !isVBRI) {
-    std::cout << "This is a VBRI mp3!" << std::endl;
-    isVBRI = true;
-  }
+  // if(mpegHeader.bitrate != prevBitrate && !isVBRI) {
+  //   std::cout << "This is a VBRI mp3!" << std::endl;
+  //   isVBRI = true;
+  // }
 
-  prevBitrate = mpegHeader.bitrate;
+  // prevBitrate = mpegHeader.bitrate;
 
   // Guessing bitrate can never be 0
   if(mpegHeader.bitrate == 0) {

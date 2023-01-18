@@ -49,10 +49,10 @@ void usage()
 }
 
 /*
-  (new) WORKFLOW:
-    Given one file, the program gives a summary (either normal summary or verbose summary).
-    Given two files, the program gives out a comparision between the two
-    Given more then two filer, the program gives ut bulk-mode information
+  (new) WORKFLOW: !=TODO *=DONE
+    * Given one file, the program gives a summary (either normal summary or verbose summary).
+    ! Given two files, the program gives out a comparision between the two
+    ! Given more then two files or folders, the program gives ut bulk-mode information
 
   TODO:
    MAJOR:
@@ -116,33 +116,22 @@ void usage()
    hela filen läses? räkna ihop alla frame size * bitrate??
 
 */
+// #define AV_NOPTS_VALUE          ((int64_t)UINT64_C(0x8000000000000000))
+// #define AV_TIME_BASE            1000000
+//
+// if (ic->duration != AV_NOPTS_VALUE) {
+//             int64_t hours, mins, secs, us;
+//             int64_t duration = ic->duration + (ic->duration <= INT64_MAX - 5000 ? 5000 : 0);
+//             secs  = duration / AV_TIME_BASE;
+//             us    = duration % AV_TIME_BASE;
+//             mins  = secs / 60;
+//             secs %= 60;
+//             hours = mins / 60;
+//             mins %= 60;
+//             av_log(NULL, AV_LOG_INFO, "%02"PRId64":%02"PRId64":%02"PRId64".%02"PRId64"", hours, mins, secs,
+//                    (100 * us) / AV_TIME_BASE);
+//         }
 
-// MAD_FLAG_LSF_EXT	= 0x1000,	/* lower sampling freq. extension */
-// MAD_LAYER_III =
-//
-// # define MAD_NSBSAMPLES(header)  \
-//   ( (header)->layer == MAD_LAYER_I ? 12 :  ( ((header)->layer == MAD_LAYER_III &&  ((header)->flags & MAD_FLAG_LSF_EXT)) ? 18 : 36 ) )
-//
-//   så, antingen 12,18,36.
-//
-//   Layer1 = 12
-//   Layer2 = 18
-//   layer3 = 36
-//
-//
-//   mad timer calculation (per frame?)
-//
-//   # define MAD_TIMER_RESOLUTION	352800000UL
-//
-//   # define MAD_NSBSAMPLES(header)  \
-//     ((header)->layer == MAD_LAYER_I ? 12 :  \
-//      (((header)->layer == MAD_LAYER_III &&  \
-//        ((header)->flags & MAD_FLAG_LSF_EXT)) ? 18 : 36))
-//
-//
-//
-//   numer = 32 * MAD_NSBSAMPLES(header)
-//   fraction = numer * (MAD_TIMER_RESOLUTION / 44100(samplerate));
 
 
 void AddToQue(std::filesystem::path path, myConfig& cfg, std::vector<std::filesystem::path>& queue) {
@@ -151,7 +140,7 @@ void AddToQue(std::filesystem::path path, myConfig& cfg, std::vector<std::filesy
   std::transform(ext.begin(), ext.end(),ext.begin(), ::toupper);
 
   if(ext == ".MP3"){
-    debug(LOG_VERBOSE) << "Adding " << path << " to que" << std::endl;
+    std::cout << "Adding " << path << " to que" << std::endl;
     queue.push_back(path);
 
     if(path.filename().string().length() > cfg.longestWidthEntry)
@@ -282,47 +271,54 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
   // Set loglevel
   GlobalLogLevel = cfg.loglevel;
 
+  std::cout << "argc: " << argc << std::endl;
+  std::cout << "optind: " << optind << std::endl;
 
   if(optind < argc) {
-    // debug(LOG_VERBOSE) << "To Analyze: " << argv[optind] << std::endl;
-    const std::filesystem::path path(argv[optind]);
-    std::error_code error_code; // For using the non-throwing overloads of functions below.
+    for(int i = optind; i<argc; i++) {
+      std::cout << "Analyzeing argument: " << argv[i] << std::endl;
 
+      std::filesystem::path path(argv[i]);
+      std::error_code error_code; // For using the non-throwing overloads of functions below.
 
-    if (std::filesystem::is_directory(path, error_code)) {
-      for(auto itEntry = std::filesystem::recursive_directory_iterator(argv[optind]);
-           itEntry != std::filesystem::recursive_directory_iterator();
-           ++itEntry )
-      {
-        // Note: Recursive is regulated by depth()
-        if(!cfg.recursive && itEntry.depth() > 0)
-          continue;
+      // Check if argument is a directory
+      if (std::filesystem::is_directory(path, error_code)) {
+        for(auto itEntry = std::filesystem::recursive_directory_iterator(argv[i]);
+             itEntry != std::filesystem::recursive_directory_iterator();
+             ++itEntry )
+        {
+          // Note: Recursive is regulated by depth()
+          if(!cfg.recursive && itEntry.depth() > 0)
+            continue;
 
-        if (itEntry->is_regular_file())
-          AddToQue(itEntry->path(), cfg, queue);
+          if (itEntry->is_regular_file())
+            AddToQue(itEntry->path(), cfg, queue);
 
+        }
       }
+
+      if (error_code) {
+          debug(LOG_ERROR) << "Error: " << error_code.message();
+          return 0;
+      }
+
+
+
+      if (std::filesystem::is_regular_file(path, error_code))
+        AddToQue(path, cfg, queue);
+
+
+      if (error_code) {
+          debug(LOG_ERROR) << "Error: " << error_code.message();
+          return 0;
+      }
+
     }
-
-    if (error_code) {
-        debug(LOG_ERROR) << "Error: " << error_code.message();
-        return 0;
-    }
-
-
-
-    if (std::filesystem::is_regular_file(path, error_code))
-      AddToQue(path, cfg, queue);
-
-
-    if (error_code) {
-        debug(LOG_ERROR) << "Error: " << error_code.message();
-        return 0;
-    }
-
   }
 
-  if(queue.size() < 2)
+
+  // Dont run in batchmode if we only have one path
+  if(queue.size() == 1)
     cfg.batchmode = false;
 
   if(queue.empty())
@@ -343,53 +339,63 @@ int main(int argc, char *argv[])
   if(HandleArgumentsRequest(argc, argv, cfg, queue)) {
     // Now we should have a config with settings and que with one or more paths
 
+
+    // If given only one file
     if(queue.size() == 1) {
-
       MP3 mp3(queue[0], cfg);
+      exit(EXIT_SUCCESS);
+    }
 
-    } else {
+    // If given two files, then do a compare
+    if(queue.size() == 2) {
+      std::cout << "COMPARING MODE!" << std::endl;
+      // Process first file
+      MP3 A_mp3(queue[0], cfg);
+      MP3 B_mp3(queue[1], cfg);
 
-      // Force stop on batchmode
-      if(cfg.stopbatchmode)
-        cfg.batchmode = false;
+      exit(EXIT_SUCCESS);
+    }
 
-      for(auto p : queue){
-        MP3 mp3(p, cfg);
+    // If given more then two files ..
+    // Force stop on batchmode
+    if(cfg.stopbatchmode)
+      cfg.batchmode = false;
+
+    for(auto p : queue){
+      MP3 mp3(p, cfg);
 
 
-        // Create error output file options is set
-        if(cfg.erroroutput) {
+      // Create error output file options is set
+      if(cfg.erroroutput) {
 
-          if(mp3.errors){
-            // This file has errors!
+        if(mp3.errors){
+          // This file has errors!
 
-            // Check if we have an output stream
-            if(!cfg.errorourputStream) {
-              cfg.errorourputStream = new std::ofstream(cfg.erroroutputpath.c_str());
+          // Check if we have an output stream
+          if(!cfg.errorourputStream) {
+            cfg.errorourputStream = new std::ofstream(cfg.erroroutputpath.c_str());
 
-              // Check for errors ..
-              if((cfg.errorourputStream->rdstate() & std::ofstream::failbit) != 0) {
-                cfg.erroroutput = false;
-                debug(LOG_ERROR) << "Failed creating output file.." << std::endl;
-              }
+            // Check for errors ..
+            if((cfg.errorourputStream->rdstate() & std::ofstream::failbit) != 0) {
+              cfg.erroroutput = false;
+              debug(LOG_ERROR) << "Failed creating output file.." << std::endl;
             }
-
-            // Give absolute path to ouput stream
-            if(cfg.errorourputStream)
-              *cfg.errorourputStream << std::filesystem::absolute(mp3.getPath()).string() << std::endl;
-
           }
+
+          // Give absolute path to ouput stream
+          if(cfg.errorourputStream)
+            *cfg.errorourputStream << std::filesystem::absolute(mp3.getPath()).string() << std::endl;
+
         }
-
       }
 
-      if(cfg.errorourputStream) {
-        if(cfg.errorourputStream->is_open())
-          cfg.errorourputStream->close();
+    }
 
-        delete cfg.errorourputStream;
-      }
+    if(cfg.errorourputStream) {
+      if(cfg.errorourputStream->is_open())
+        cfg.errorourputStream->close();
 
+      delete cfg.errorourputStream;
     }
 
   } else {

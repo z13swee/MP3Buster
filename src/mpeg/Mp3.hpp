@@ -19,6 +19,14 @@
 
 #include "id3v2/id3v2.hpp"
 
+struct DurationTime
+{
+  unsigned hours = 0;
+  unsigned minutes = 0;
+  unsigned seconds = 0;
+  float raw = 0;
+};
+
 struct MPEGHeader
 {
   bool isHeaderValid = false;
@@ -155,7 +163,7 @@ public:
   void printHeaderInformation(int loglevel);
   void BatchmodeOutput(std::filesystem::path path, myConfig& cfg);
 
-  void CalculateDuration();
+  void EstimateDuration();
 
   inline bool isFrameSync(const std::vector<uint8_t> &bytes, unsigned int offset = 0);
 
@@ -176,12 +184,12 @@ public:
   unsigned m_FileSize = 0;
   unsigned m_FrameIndex = 1;
   unsigned m_badframes = 0;
-  unsigned m_DurationInSeconds = 0;
+  // unsigned m_DurationInSeconds = 0;
 
   bool errors = false;
   bool lastframe = false;
   bool isVBRI = false;
-  int prevBitrate = -1;
+  // int prevBitrate = -1;
 
   // TAGs
   // ----
@@ -189,6 +197,9 @@ public:
 
   bool foundID3v2 = false;
   bool foundAPEv2 = false;
+
+
+  bool noerros = false;
 
   // ID3v1 and APEv1 we check if offset > 0 to se
   // if we found them
@@ -213,6 +224,12 @@ public:
   MPEGFrame mpegFrame;
 
   unsigned long madTimeTest = 0;
+
+  float durationAcumelator = 0;
+  // float durationInMS = 0;
+  int hours,minutes,seconds = 0;
+  DurationTime calculatedDuration;
+  DurationTime estimatedDuration;
 
   // MPEG Header
   // -----------
