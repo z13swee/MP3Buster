@@ -89,7 +89,8 @@ void usage()
      (se: https://stackoverflow.com/questions/22040052/stdsetw-considering-special-characters-as-two-characters)
 
     + ~/Mp3/Game\ OST/MP3/Sanitarium/01\ -\ track\ 01.mp3 gibes sample rate error and does not preocess even though audacious plays it
-
+    + Trunctace error is given in single file mode, but shows OK in bulk mode (jamp3-testfiles/mp3/vbr/abr064.mp3)
+  
   Fundering:
 
    Det verkar som att EEEK ljudet skapas av när mpeg headern inte är i sync, alltså på det stället det borde.
@@ -349,15 +350,24 @@ int main(int argc, char *argv[])
     // If given two files, then do a compare
     if(queue.size() == 2) {
       std::cout << "COMPARING MODE!" << std::endl;
-      // Process first file
+      
+      // in Compare mode, always analys whole files
+      cfg.stoponerror = false;
+
+      // Shsss shsss. quiet
+      GlobalLogLevel = LOG_SILENT;
+      
       MP3 A_mp3(queue[0], cfg);
       MP3 B_mp3(queue[1], cfg);
+
+      // Print compared data (Highlight diffrence)
+      // To compare: Duration, 
 
       exit(EXIT_SUCCESS);
     }
 
     // If given more then two files ..
-    // Force stop on batchmode
+    // If option stopbatchmode was given, stop batchmode :>
     if(cfg.stopbatchmode)
       cfg.batchmode = false;
 
