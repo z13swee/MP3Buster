@@ -95,21 +95,21 @@ ID3v2Header* ID3v2::ParseHeader(const std::vector<uint8_t> &data) {
 
     if(sizeData.size() != 4) {
       header->tagSize = 0;
-      debug(LOG_ERROR) << "ID3v2::ID3v2Header::parse() - The tag size as read was 0 bytes!" << std::endl;
+      debug(LOG_ERROR) << "ID3v2 Header tag size read was 0 bytes!" << std::endl;
       return nullptr;
     }
 
     for(auto val : sizeData) {
       if(val >= 128) {
         header->tagSize = 0;
-        debug(LOG_ERROR) << "ID3v2::ID3v2Header::parse() - One of the size bytes in the id3v2 header was greater than the allowed 128." << std::endl;
+        debug(LOG_ERROR) << "ID3v2 Header One of the size bytes in the id3v2 header was greater than the allowed 128." << std::endl;
         return nullptr;
       }
     }
 
     // Get the size from the remaining four bytes (read above)
     // header->tagSize = MPEG::Utils::toUInt(sizeData); // (structure 3.1 "size")
-    header->tagSize = GetSynchsafeInteger(ReadBEValue(sizeData)); // (structure 3.1 "size")
+    header->tagSize = GetSynchsafeInteger(ReadBEValue(sizeData)) + 10; // +10 = Header size in bytes
 
     if(header->tagSize <= 0) {
       debug(LOG_ERROR) << "ID3v2 Tagsize cant be less or equal to zero." << std::endl;
@@ -353,8 +353,8 @@ void ID3v2::Render(int loglevel) {
   debug(loglevel) << "extendedHeader: \t" << (Header->extendedHeader ? "Yes" : "No") << std::endl;
   debug(loglevel) << "experimentalIndicator:\t" << (Header->experimentalIndicator ? "Yes" : "No") << std::endl;
   debug(loglevel) << "footerPresent: \t\t" << (Header->footerPresent ? "Yes" : "No") << std::endl;
-
   debug(loglevel) << "tagSize: \t\t" << Header->tagSize << std::endl;
+  debug(loglevel) << "Number of ID3v2 frames: " << m_frames.size() << std::endl;
 
   // TODO: Frame info ...
   debug(loglevel) << "Frames:" << std::endl;
@@ -366,8 +366,7 @@ void ID3v2::Render(int loglevel) {
 
   }
 
-  std::cout << std::endl;
-  debug(loglevel) << "Number of frames: " << m_frames.size() << std::endl;
+
   // Note:
   // The ID3v2 tag size is the size of the complete tag after unsychronisation,
   // including padding, excluding the header but not excluding the extended header

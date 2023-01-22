@@ -29,13 +29,12 @@ void usage()
     std::cout << "\nUsage:\tMP3Crawler [OPTIONS]...  FILE|PATH" << std::endl;
     std::cout << "Batchmode will only output one line per file with information" << std::endl;
     std::cout << "  -n,\t\t--nobatch\t\t\tStops batchmode for multiple files and will show full information" << std::endl;
-    std::cout << "  -c <path>,\t\t--config <path>\t\tpath to config file describeing action to be taken" << std::endl;
+    // std::cout << "  -c <path>,\t\t--config <path>\t\tpath to config file describeing action to be taken" << std::endl;
     std::cout << "  -e <path>,\t--erroroutput <path>\tPuts full path of the files giving errors into a file" << std::endl;
-    std::cout << "  -l,\t\t--log <1-6>\t\tdetermines the log level (see log levels below) thats get printed" << std::endl;
+    std::cout << "  -l,\t\t--log <1-4>\t\tdetermines the log level (see log levels below) thats get printed" << std::endl;
     std::cout << "  -r,\t\t--recursive\t\tRecursivly going trought given path" << std::endl;
-
     std::cout << "  -p,\t\t--playback\t\tplays the audio from the mp3 file" << std::endl;
-    std::cout << "  -d,\t\t--dontstop\t\tDont stop at first bad frame, cuntinue analyzeing. Only for batchmode" << std::endl;
+    std::cout << "  -d,\t\t--dontstop\t\tDont stop at first bad frame, cuntinue analyzeing." << std::endl;
     std::cout << "    \t\t--help\t\t\tprint this help screen" << std::endl;
     std::cout << "    \t\t--version\t\tprint version information\n" << std::endl;
     std::cout << "Loglevels:" << std::endl;
@@ -51,24 +50,26 @@ void usage()
 /*
   (new) WORKFLOW: !=TODO *=DONE
     * Given one file, the program gives a summary (either normal summary or verbose summary).
-    ! Given two files, the program gives out a comparision between the two
-    ! Given more then two files or folders, the program gives ut bulk-mode information
+    * Given two files, the program gives out a comparision between the two
+    * Given more then two files or folders, the program gives ut bulk-mode information
 
   TODO:
    MAJOR:
+    * Check content if this realy is a mp3 file. Now we only go by extension
+    * Implement Config option
     * history, a temporary locale file thats keeps the hashes of the known good files. so when it runs again, it wont check thoes
       and a option for ingnoring history and re-scan
     * Profiler? to make it faster..
 
   MINOR:
+    * Make Verbose logging somewhat useful (or get rid of it)
     * Tidy up File.hpp/cpp , implement and test write functions etc.
     * Tidy up argument/config hanteraren
-    * Process indekation? 24/144 files counter or something?
-    * Better visualized seperation between files, se running multiple files with -b
-    * Add as options:
-        + path to configuration file that describe how to manage the mp3 files, rename,
-          rephrase, delete/put in corantine etc.
-        + Options to output a file with list of only bad mp3s?
+
+    * remove stopbatchmode and have 'force-batchmode' and 'force-singlemode'
+
+
+
 
   NOT EVEN STARTED:
     * File & Tag manager:
@@ -83,14 +84,14 @@ void usage()
     Går det att fixa dessa miss ljud genom att ta 'sy ihop' dom fungerande frames en?
     Alltså flytta nästa valid frame till den plats som den 'ska vara'
 
+    alternativt att "fixa" den trasiga headern och hoppas på att ljud-datan är korrekt
+
   BUGG:
     + Vid Batchmode output så blir det något fel med std::setw eller std::left eller nått, för
      när det kommer en fil med ÅÄÖ i sig så blir det inte lika "brätt" till ':OK' outputen
      (se: https://stackoverflow.com/questions/22040052/stdsetw-considering-special-characters-as-two-characters)
 
-    + ~/Mp3/Game\ OST/MP3/Sanitarium/01\ -\ track\ 01.mp3 gibes sample rate error and does not preocess even though audacious plays it
-    + Trunctace error is given in single file mode, but shows OK in bulk mode (jamp3-testfiles/mp3/vbr/abr064.mp3)
-  
+
   Fundering:
 
    Det verkar som att EEEK ljudet skapas av när mpeg headern inte är i sync, alltså på det stället det borde.
@@ -117,31 +118,14 @@ void usage()
    hela filen läses? räkna ihop alla frame size * bitrate??
 
 */
-// #define AV_NOPTS_VALUE          ((int64_t)UINT64_C(0x8000000000000000))
-// #define AV_TIME_BASE            1000000
-//
-// if (ic->duration != AV_NOPTS_VALUE) {
-//             int64_t hours, mins, secs, us;
-//             int64_t duration = ic->duration + (ic->duration <= INT64_MAX - 5000 ? 5000 : 0);
-//             secs  = duration / AV_TIME_BASE;
-//             us    = duration % AV_TIME_BASE;
-//             mins  = secs / 60;
-//             secs %= 60;
-//             hours = mins / 60;
-//             mins %= 60;
-//             av_log(NULL, AV_LOG_INFO, "%02"PRId64":%02"PRId64":%02"PRId64".%02"PRId64"", hours, mins, secs,
-//                    (100 * us) / AV_TIME_BASE);
-//         }
-
-
 
 void AddToQue(std::filesystem::path path, myConfig& cfg, std::vector<std::filesystem::path>& queue) {
-  // TODO: Check content if this realy is a mp3 file. Now we only go by extension
+
   std::string ext = path.extension().string();
   std::transform(ext.begin(), ext.end(),ext.begin(), ::toupper);
 
   if(ext == ".MP3"){
-    std::cout << "Adding " << path << " to que" << std::endl;
+    debug(LOG_VERBOSE) << "Adding " << path << " to que" << std::endl;
     queue.push_back(path);
 
     if(path.filename().string().length() > cfg.longestWidthEntry)
@@ -185,7 +169,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
       {"version", no_argument, 0, 'V'}, // Print out version
       {"nobatch", no_argument, 0, 'n'},
       {"erroroutput",   required_argument, 0, 'e'},
-      {"config",   required_argument, 0, 'c'},
+      // {"config",   required_argument, 0, 'c'},
       {"log",   required_argument, 0, 'l'},
       {"recursive",   no_argument, 0, 'r'},
       {"playback",   no_argument, 0, 'p'},
@@ -213,7 +197,7 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
         case 'h': { usage(); break; }
         case 'V': { version(); break; }
         case 'n': { cfg.stopbatchmode = true; break; }
-        case 'c': { std::cout << "config option!" << std::endl; break; }
+        // case 'c': { std::cout << "config option!" << std::endl; break; }
         case 'e': {
 
           // So if we useing long option, the value is in optarg
@@ -272,12 +256,12 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
   // Set loglevel
   GlobalLogLevel = cfg.loglevel;
 
-  std::cout << "argc: " << argc << std::endl;
-  std::cout << "optind: " << optind << std::endl;
+  // std::cout << "argc: " << argc << std::endl;
+  // std::cout << "optind: " << optind << std::endl;
 
   if(optind < argc) {
     for(int i = optind; i<argc; i++) {
-      std::cout << "Analyzeing argument: " << argv[i] << std::endl;
+      // std::cout << "Analyzeing argument: " << argv[i] << std::endl;
 
       std::filesystem::path path(argv[i]);
       std::error_code error_code; // For using the non-throwing overloads of functions below.
@@ -317,17 +301,301 @@ int HandleArgumentsRequest(int argc, char *argv[], myConfig& cfg, std::vector<st
     }
   }
 
-
-  // Dont run in batchmode if we only have one path
-  if(queue.size() == 1)
-    cfg.batchmode = false;
-
   if(queue.empty())
     debug(LOG_INFO) << "No files found!" << std::endl;
 
   return 1;
 };
 
+void CompareOutput(MP3& A_mp3, MP3& B_mp3)
+{
+  // Print compared data (Highlight diffrence)
+  std::string A_filename = A_mp3.m_File->getPath().filename();
+  std::string B_filename = B_mp3.m_File->getPath().filename();
+
+  // 19 + 16 + 5
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream DurationString;
+  DurationString << "Duration: " << std::setw(19-10) << "" << std::setfill('0') << std::setw(2)
+  << A_mp3.calculatedDuration.minutes << ":" << std::setfill('0') << std::setw(2)
+  << A_mp3.calculatedDuration.seconds << std::setfill(' ')
+  << "" << std::setw(16-5) << "" << std::setfill('0') << std::setw(2) << B_mp3.calculatedDuration.minutes << ":" << std::setfill('0') << std::setw(2) << B_mp3.calculatedDuration.seconds;
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream VersionString;
+  VersionString << "Version: " << std::setw(19-9) << "";
+  switch (A_mp3.mpegHeader.version) {
+    case 1: VersionString << "MPEG Version 1"; break;
+    case 2: VersionString << "MPEG Version 2"; break;
+    case 25: VersionString << "MPEG Version 2.5"; break;
+  }
+  VersionString << std::setw((19+16)-VersionString.str().size()) << "";
+  switch (B_mp3.mpegHeader.version) {
+    case 1: VersionString << "MPEG Version 1"; break;
+    case 2: VersionString << "MPEG Version 2"; break;
+    case 25: VersionString << "MPEG Version 2.5"; break;
+  }
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream LayerString;
+  LayerString << "Layer: " << std::setw(19-7) << "";
+  switch (A_mp3.mpegHeader.layer) {
+    case 1: LayerString << "Layer I"; break;
+    case 2: LayerString << "Layer II"; break;
+    case 3: LayerString << "Layer III"; break;
+  }
+  // LayerString << std::setw(10) << "";
+  LayerString << std::setw((19+16)-LayerString.str().size()) << "";
+  switch (B_mp3.mpegHeader.layer) {
+    case 1: LayerString << "Layer I"; break;
+    case 2: LayerString << "Layer II"; break;
+    case 3: LayerString << "Layer III"; break;
+  }
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream BitrateString;
+  BitrateString << "Bitrate: " << std::setw(19-9) << "" << A_mp3.mpegHeader.bitrate;
+  BitrateString << std::setw((19+16)-BitrateString.str().size()) << "" << B_mp3.mpegHeader.bitrate;
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream SampleingRateString;
+  SampleingRateString << "Sample rate: " << std::setw(19-13) << "" << A_mp3.mpegHeader.samplingRate;
+  SampleingRateString << std::setw((19+16)-SampleingRateString.str().size()) << "" << B_mp3.mpegHeader.samplingRate;
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream SamplesPerFrameString;
+  SamplesPerFrameString << "Samples per Frame: " << std::setw(19-19) << "" << A_mp3.mpegHeader.samplesPerFrame;
+  SamplesPerFrameString << std::setw((19+16)-SamplesPerFrameString.str().size()) << "" << B_mp3.mpegHeader.samplesPerFrame;
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream protectionEnabledString;
+  protectionEnabledString << "Protected by CRC: " << std::setw(19-18) << "" << ((A_mp3.mpegHeader.protectionEnabled) ? "Yes" : "No") << ((A_mp3.mpegHeader.CRCpassed) ? "(passed)" : "");
+  protectionEnabledString << std::setw((19+16)-protectionEnabledString.str().size()) << "";
+  protectionEnabledString << ((B_mp3.mpegHeader.protectionEnabled) ? "Yes" : "No") << ((B_mp3.mpegHeader.CRCpassed) ? "(passed)" : "");
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream isPaddedString;
+  isPaddedString << "isPadded: " << std::setw(19-10) << "" << ((A_mp3.mpegHeader.isPadded) ? "Yes" : "No");
+  isPaddedString << std::setw((19+16)-isPaddedString.str().size()) << "";
+  isPaddedString << ((B_mp3.mpegHeader.isPadded) ? "Yes" : "No");
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream isCopyrightedString;
+  isCopyrightedString << "isCopyrighted: " << std::setw(19-15) << "" << ((A_mp3.mpegHeader.isCopyrighted) ? "Yes" : "No");
+  isCopyrightedString << std::setw((19+16)-isCopyrightedString.str().size()) << "";
+  isCopyrightedString << ((B_mp3.mpegHeader.isCopyrighted) ? "Yes" : "No");
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream isOriginalString;
+  isOriginalString << "isOriginal: " << std::setw(19-12) << "" << ((A_mp3.mpegHeader.isOriginal) ? "Yes" : "No");
+  isOriginalString << std::setw((19+16)-isOriginalString.str().size()) << "";
+  isOriginalString << ((B_mp3.mpegHeader.isOriginal) ? "Yes" : "No");
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream xingTag;
+  std::stringstream xingFrames;
+  std::stringstream xingBytes;
+  std::stringstream xingQuality;
+
+  xingTag << "Xing tag: " << std::setw(19-10) << "" << ((A_mp3.mpegHeader.xingHeader) ? A_mp3.mpegHeader.xingString : "No");
+  xingTag << std::setw((19+16)-xingTag.str().size()) << "";
+  xingTag << ((B_mp3.mpegHeader.xingHeader) ? B_mp3.mpegHeader.xingString : "No");
+
+  if(A_mp3.mpegHeader.xingHeader || B_mp3.mpegHeader.xingHeader)
+  {
+    xingFrames << "Xing Frames: " << std::setw(19-13) << "" << ((A_mp3.mpegHeader.xingHeader) ? A_mp3.mpegHeader.xing_frames : 0);
+    xingFrames << std::setw((19+16)-xingFrames.str().size()) << "";
+    xingFrames << ((B_mp3.mpegHeader.xingHeader) ? B_mp3.mpegHeader.xing_frames : 0);
+
+    xingBytes << "Xing Bytes: " << std::setw(19-12) << "" << ((A_mp3.mpegHeader.xingHeader) ? A_mp3.mpegHeader.xing_bytes : 0);
+    xingBytes << std::setw((19+16)-xingBytes.str().size()) << "";
+    xingBytes << ((B_mp3.mpegHeader.xingHeader) ? B_mp3.mpegHeader.xing_bytes : 0);
+
+    xingQuality << "Xing Quality: " << std::setw(19-14) << "" << ((A_mp3.mpegHeader.xingHeader) ? A_mp3.mpegHeader.xing_quality : 0);
+    xingQuality << std::setw((19+16)-xingQuality.str().size()) << "";
+    xingQuality << ((B_mp3.mpegHeader.xingHeader) ? B_mp3.mpegHeader.xing_quality : 0);
+  }
+
+  // ---------------------------------------------------------------------------------------
+
+  std::stringstream vbriHeaderString;
+  std::stringstream vbriVersionString;
+  std::stringstream vbriDelayString;
+  std::stringstream vbriQualityString;
+  std::stringstream vbriBytesString;
+  std::stringstream vbriFramesString;
+  std::stringstream vbriTOCEntriesString;
+  std::stringstream vbriTOCScaleString;
+  std::stringstream vbriTOCSizeTableString;
+  std::stringstream vbriTOCFrameString;
+  std::stringstream vbriTOCSizeString;
+
+  vbriHeaderString << "VBRI tag: " << std::setw(19-10) << "" << ((A_mp3.mpegHeader.VBRIHeader) ? "Yes" : "No");
+  vbriHeaderString << std::setw((19+16)-vbriHeaderString.str().size()) << "";
+  vbriHeaderString << ((B_mp3.mpegHeader.VBRIHeader) ? "Yes" : "No");
+
+  if(A_mp3.mpegHeader.VBRIHeader || B_mp3.mpegHeader.VBRIHeader)
+  {
+    vbriVersionString << "VBRI Version: " << std::setw(19-14) << "" << ((A_mp3.mpegHeader.VBRI_version) ? A_mp3.mpegHeader.VBRI_version : 0);
+    vbriVersionString << std::setw((19+16)-vbriVersionString.str().size()) << "";
+    vbriVersionString << ((B_mp3.mpegHeader.VBRI_version) ? B_mp3.mpegHeader.VBRI_version : 0);
+
+    vbriDelayString << "VBRI Delay: " << std::setw(19-12) << "" << ((A_mp3.mpegHeader.VBRI_delay) ? A_mp3.mpegHeader.VBRI_delay : 0);
+    vbriDelayString << std::setw((19+16)-vbriDelayString.str().size()) << "";
+    vbriDelayString << ((B_mp3.mpegHeader.VBRI_delay) ? B_mp3.mpegHeader.VBRI_delay : 0);
+
+    vbriQualityString << "VBRI Quality: " << std::setw(19-14) << "" << ((A_mp3.mpegHeader.VBRI_quality) ? A_mp3.mpegHeader.VBRI_quality : 0);
+    vbriQualityString << std::setw((19+16)-vbriQualityString.str().size()) << "";
+    vbriQualityString << ((B_mp3.mpegHeader.VBRI_quality) ? B_mp3.mpegHeader.VBRI_quality : 0);
+
+    vbriBytesString << "VBRI Number of Bytes: " << std::setw(19-22) << "" << ((A_mp3.mpegHeader.VBRI_bytes) ? A_mp3.mpegHeader.VBRI_bytes : 0);
+    vbriBytesString << std::setw((19+16)-vbriBytesString.str().size()) << "";
+    vbriBytesString << ((B_mp3.mpegHeader.VBRI_bytes) ? B_mp3.mpegHeader.VBRI_bytes : 0);
+
+    vbriFramesString << "VBRI Number of Frames: " << std::setw(19-23) << "" << ((A_mp3.mpegHeader.VBRI_frames) ? A_mp3.mpegHeader.VBRI_frames : 0);
+    vbriFramesString << std::setw((19+16)-vbriFramesString.str().size()) << "";
+    vbriFramesString << ((B_mp3.mpegHeader.VBRI_frames) ? B_mp3.mpegHeader.VBRI_frames : 0);
+
+    vbriTOCEntriesString << "VBRI TOC Entries: " << std::setw(19-18) << "" << ((A_mp3.mpegHeader.VBRI_TOC_entries) ? A_mp3.mpegHeader.VBRI_TOC_entries : 0);
+    vbriTOCEntriesString << std::setw((19+16)-vbriTOCEntriesString.str().size()) << "";
+    vbriTOCEntriesString << ((B_mp3.mpegHeader.VBRI_TOC_entries) ? B_mp3.mpegHeader.VBRI_TOC_entries : 0);
+
+    vbriTOCScaleString << "VBRI TOC Scale: " << std::setw(19-16) << "" << ((A_mp3.mpegHeader.VBRI_TOC_scale) ? A_mp3.mpegHeader.VBRI_TOC_scale : 0);
+    vbriTOCScaleString << std::setw((19+16)-vbriTOCScaleString.str().size()) << "";
+    vbriTOCScaleString << ((B_mp3.mpegHeader.VBRI_TOC_scale) ? B_mp3.mpegHeader.VBRI_TOC_scale : 0);
+
+    vbriTOCSizeTableString << "VBRI TOC Size / table: " << std::setw(19-23) << "" << ((A_mp3.mpegHeader.VBRI_TOC_sizetable) ? A_mp3.mpegHeader.VBRI_TOC_sizetable : 0);
+    vbriTOCSizeTableString << std::setw((19+16)-vbriTOCSizeTableString.str().size()) << "";
+    vbriTOCSizeTableString << ((B_mp3.mpegHeader.VBRI_TOC_sizetable) ? B_mp3.mpegHeader.VBRI_TOC_sizetable : 0);
+
+    vbriTOCFrameString << "VBRI TOC Frames / table entry: " << std::setw(19-31) << "" << ((A_mp3.mpegHeader.VBRI_TOC_framestable) ? A_mp3.mpegHeader.VBRI_TOC_framestable : 0);
+    vbriTOCFrameString << std::setw((19+16)-vbriTOCFrameString.str().size()) << "";
+    vbriTOCFrameString << ((B_mp3.mpegHeader.VBRI_TOC_framestable) ? B_mp3.mpegHeader.VBRI_TOC_framestable : 0);
+
+    vbriTOCSizeString << "VBRI TOC Size: " << std::setw(19-15) << "" << ((A_mp3.mpegHeader.VBRI_TOC_size) ? A_mp3.mpegHeader.VBRI_TOC_size : 0);
+    vbriTOCSizeString << std::setw((19+16)-vbriTOCSizeString.str().size()) << "";
+    vbriTOCSizeString << ((B_mp3.mpegHeader.VBRI_TOC_size) ? B_mp3.mpegHeader.VBRI_TOC_size : 0);
+
+  }
+
+  std::stringstream id3v2String;
+  std::stringstream id3v1String;
+  std::stringstream apev1String;
+  std::stringstream apev2String;
+
+  if(A_mp3.id3v1_offset || B_mp3.id3v1_offset) {
+    id3v1String << "ID3v1 Tag: " << std::setw(19-11) << "" << ((A_mp3.id3v1_offset) ? "Yes" : "No");
+    id3v1String << std::setw((19+16)-id3v1String.str().size()) << "";
+    id3v1String << ((B_mp3.id3v1_offset) ? "Yes" : "No");
+  }
+
+  if(A_mp3.id3v2_offset || B_mp3.id3v2_offset) {
+    id3v2String << "ID3v2 Tag: " << std::setw(19-11) << "" << ((A_mp3.id3v2_offset) ? "Yes" : "No");
+    id3v2String << std::setw((19+16)-id3v2String.str().size()) << "";
+    id3v2String << ((B_mp3.id3v2_offset) ? "Yes" : "No");
+  }
+
+
+  if(A_mp3.apev1_offset || B_mp3.apev1_offset) {
+    apev1String << "APEv1 Tag: " << std::setw(19-11) << "" << ((A_mp3.apev1_offset) ? "Yes" : "No");
+    apev1String << std::setw((19+16)-apev1String.str().size()) << "";
+    apev1String << ((B_mp3.apev1_offset) ? "Yes" : "No");
+  }
+
+
+  if(A_mp3.apev2_offset || B_mp3.apev2_offset) {
+    apev2String << "APEv2 Tag: " << std::setw(19-11) << "" << ((A_mp3.apev2_offset) ? "Yes" : "No");
+    apev2String << std::setw((19+16)-apev2String.str().size()) << "";
+    apev2String << ((B_mp3.apev2_offset) ? "Yes" : "No");
+  }
+
+
+  // ---------------------------------------------------------------------------------------
+
+  debug(LOG_INFO) << "Comparing\n" << CONSOLE_COLOR_U << "(A) " << A_filename << "\n" << "(B) " << B_filename << CONSOLE_COLOR_NORMAL << std::endl;
+  // debug(LOG_INFO) << "------------------------------------------------------------------------" << std::endl;
+  debug(LOG_INFO) << std::setw(20) << "A" << std::setw(16) << "B" << std::endl;
+  debug(LOG_INFO) << DurationString.str() << std::endl;
+  debug(LOG_INFO) << VersionString.str() << std::endl;
+  debug(LOG_INFO) << LayerString.str() << std::endl;
+  debug(LOG_INFO) << BitrateString.str() << std::endl;
+  debug(LOG_INFO) << SampleingRateString.str() << std::endl;
+  debug(LOG_INFO) << SamplesPerFrameString.str() << std::endl;
+  debug(LOG_INFO) << protectionEnabledString.str() << std::endl;
+  debug(LOG_INFO) << isPaddedString.str() << std::endl;
+  debug(LOG_INFO) << isCopyrightedString.str() << std::endl;
+  debug(LOG_INFO) << isOriginalString.str() << std::endl;
+
+  debug(LOG_INFO) << xingTag.str() << std::endl;
+  if(A_mp3.mpegHeader.xingHeader || B_mp3.mpegHeader.xingHeader) {
+    debug(LOG_INFO) << xingFrames.str() << std::endl;
+    debug(LOG_INFO) << xingBytes.str() << std::endl;
+    debug(LOG_INFO) << xingQuality.str() << std::endl;
+  }
+
+  debug(LOG_INFO) << vbriHeaderString.str() << std::endl;
+  if(A_mp3.mpegHeader.VBRIHeader || B_mp3.mpegHeader.VBRIHeader) {
+    debug(LOG_INFO) << vbriVersionString.str() << std::endl;
+    debug(LOG_INFO) << vbriDelayString.str() << std::endl;
+    debug(LOG_INFO) << vbriQualityString.str() << std::endl;
+    debug(LOG_INFO) << vbriBytesString.str() << std::endl;
+    debug(LOG_INFO) << vbriFramesString.str() << std::endl;
+    debug(LOG_INFO) << vbriTOCEntriesString.str() << std::endl;
+    debug(LOG_INFO) << vbriTOCScaleString.str() << std::endl;
+    debug(LOG_INFO) << vbriTOCSizeTableString.str() << std::endl;
+    debug(LOG_INFO) << vbriTOCFrameString.str() << std::endl;
+    debug(LOG_INFO) << vbriTOCSizeString.str() << std::endl;
+  }
+
+  // TAGS ...
+  if(A_mp3.id3v1_offset || B_mp3.id3v1_offset)
+    debug(LOG_INFO) << id3v1String.str() << std::endl;
+
+  if(A_mp3.id3v2_offset || B_mp3.id3v2_offset)
+    debug(LOG_INFO) << id3v2String.str() << std::endl;
+
+  if(A_mp3.apev1_offset || B_mp3.apev1_offset)
+    debug(LOG_INFO) << apev1String.str() << std::endl;
+
+  if(A_mp3.apev2_offset || B_mp3.apev2_offset)
+    debug(LOG_INFO) << apev2String.str() << std::endl;
+
+  // ERRORS!?
+  std::stringstream errorString;
+  if(A_mp3.m_badframes || B_mp3.m_badframes) {
+
+    errorString << "Bad Frames: " << std::setw(19-12) << "";
+    if(A_mp3.m_badframes > 0)
+      errorString << CONSOLE_COLOR_RED << A_mp3.m_badframes << CONSOLE_COLOR_NORMAL;
+    else
+      errorString << "No";
+
+    // +13 is for compensating for COLOR macros (i think)
+    errorString << std::setw((19+16)-errorString.str().size()+13) << "";
+
+    if(B_mp3.m_badframes > 0)
+      errorString << CONSOLE_COLOR_RED << B_mp3.m_badframes << CONSOLE_COLOR_NORMAL;
+    else
+      errorString << "No";
+
+  } else {
+    errorString << "Bad Frames: " << std::setw(19-12) << "" <<  "No" << std::setw(16) << "No";
+  }
+
+  debug(LOG_INFO) << errorString.str() << std::endl;
+
+}
 
 
 int main(int argc, char *argv[])
@@ -341,39 +609,53 @@ int main(int argc, char *argv[])
     // Now we should have a config with settings and que with one or more paths
 
 
-    // If given only one file
+    // SINGLE FILE MODE
+    // --------------------------------------------------------
     if(queue.size() == 1) {
+      std::cout << "SINGLE FILE MODE" << std::endl;
+      cfg.batchmode = false;
+
       MP3 mp3(queue[0], cfg);
       exit(EXIT_SUCCESS);
     }
 
-    // If given two files, then do a compare
+    // COMPARE MODE
+    // --------------------------------------------------------
     if(queue.size() == 2) {
-      std::cout << "COMPARING MODE!" << std::endl;
-      
+      std::cout << "COMPARE MODE" << std::endl;
+
       // in Compare mode, always analys whole files
       cfg.stoponerror = false;
+      cfg.batchmode = false;
 
       // Shsss shsss. quiet
       GlobalLogLevel = LOG_SILENT;
-      
+
       MP3 A_mp3(queue[0], cfg);
       MP3 B_mp3(queue[1], cfg);
 
-      // Print compared data (Highlight diffrence)
-      // To compare: Duration, 
+      GlobalLogLevel = cfg.loglevel;
+
+      // Construct and output comparision
+      CompareOutput(A_mp3, B_mp3);
 
       exit(EXIT_SUCCESS);
     }
 
-    // If given more then two files ..
-    // If option stopbatchmode was given, stop batchmode :>
+    // BATCHMODE FILE MODE
+    // --------------------------------------------------------
+    std::cout << "BATCHMODE" << std::endl;
+
     if(cfg.stopbatchmode)
       cfg.batchmode = false;
 
-    for(auto p : queue){
-      MP3 mp3(p, cfg);
+    unsigned index = 0;
 
+    for(auto p : queue){
+      index++;
+      std::cout << "(" << index << "/" << queue.size() << ")";
+
+      MP3 mp3(p, cfg);
 
       // Create error output file options is set
       if(cfg.erroroutput) {
@@ -381,7 +663,7 @@ int main(int argc, char *argv[])
         if(mp3.errors){
           // This file has errors!
 
-          // Check if we have an output stream
+          // Check if we have an output stream, create one if otherwise
           if(!cfg.errorourputStream) {
             cfg.errorourputStream = new std::ofstream(cfg.erroroutputpath.c_str());
 
@@ -399,8 +681,11 @@ int main(int argc, char *argv[])
         }
       }
 
-    }
 
+    }
+    std::cout << std::endl;
+
+    // Clean up
     if(cfg.errorourputStream) {
       if(cfg.errorourputStream->is_open())
         cfg.errorourputStream->close();

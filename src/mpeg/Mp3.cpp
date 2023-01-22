@@ -8,10 +8,9 @@
 MP3::MP3(std::filesystem::path path, myConfig& config)
 {
 
-  // GlobalLogLevel = LOG_VERBOSE;
-
   cfg = config;
   m_File = new FileWrapper(path);
+
 
   if(m_File->isValid() && m_File->getSize() != 0) {
     m_FileSize = m_File->getSize();
@@ -19,14 +18,16 @@ MP3::MP3(std::filesystem::path path, myConfig& config)
     // Batchmode !
     if(cfg.batchmode) {
 
+
       GlobalLogLevel = LOG_SILENT;
       Analyze();
 
-      GlobalLogLevel = LOG_INFO;
+      GlobalLogLevel = cfg.loglevel;
       BatchmodeOutput(path, cfg);
 
 
     } else {
+
       // Single file
       debug(LOG_INFO) << "File: " << path.filename().string() << std::endl;
       Analyze();
@@ -34,7 +35,7 @@ MP3::MP3(std::filesystem::path path, myConfig& config)
     }
 
   } else {
-    debug(LOG_INFO) << std::left << CONSOLE_COLOR_RED << std::setw(cfg.longestWidthEntry + 3) << path.filename().string() << ": "  << "NOT OK! (zero bytes or invalid file)" << CONSOLE_COLOR_NORMAL << std::endl;
+    debug(LOG_INFO) << std::left << CONSOLE_COLOR_RED << path.filename().string() << "\tInvalid file!" << CONSOLE_COLOR_NORMAL << std::endl;
     errors = true;
   }
 }
@@ -59,7 +60,6 @@ void MP3::BatchmodeOutput(std::filesystem::path path, myConfig& cfg)
     }
 
   } else {
-    // debug(LOG_INFO) << outputstring << std::endl;
     debug(LOG_INFO) << std::left << std::setw(column_width) << path.filename().string() << ": " <<  CONSOLE_COLOR_GOLD << "OK!" << CONSOLE_COLOR_NORMAL << std::endl;
   }
 
@@ -236,20 +236,23 @@ void MP3::Analyze()
 
 
   for(unsigned int i = endOfStartTagsOffset; i < m_FileSize - 1; ++i) {
+    debug(LOG_VERBOSE) << "Starting search for valid MPEG frame at: " << endOfStartTagsOffset << std::endl;
+
+    if(lastframe)
+      break;
 
     if(isFrameSync(m_filebuffer, i)) {
-      bool reachedEndOfFrames = false;
       CurrentHeaderOffset = i;
 
       while (InitializeHeader(m_File)) {
-        reachedEndOfFrames = false;
+
 
         // For first valid header, setup audio output
         if(m_FrameIndex == 1) {
           // logger::GlobalLogLevel = LOG_INFO;
 
           firstvalidframe = i;
-          debug(LOG_VERBOSE) << "FIST VALID FRAME FOUND AT: " << firstvalidframe << std::endl;
+          debug(LOG_VERBOSE) << "First valid frame found at: " << firstvalidframe << std::endl;
 
           EstimateDuration();
 
@@ -291,21 +294,8 @@ void MP3::Analyze()
 
         }
 
-        // TESTING
-        int nn = 0;
-
-        switch (mpegHeader.layer) {
-          case 1: nn = 12; break;
-          case 2: nn = 18; break;
-          case 3: nn = 36; break;
-        }
-
-        madTimeTest += (32 * nn ) * (MAD_TIMER_RESOLUTION / mpegHeader.samplingRate);
-
         // Only works if we read the whole file
         calculatedDuration.raw += ((float)mpegHeader.samplesPerFrame / (float)mpegHeader.samplingRate);
-
-        // END TESTING
 
         // Decode frame data
         if(cfg.playback) {
@@ -318,19 +308,13 @@ void MP3::Analyze()
             snd_pcm_recover(handle, e, 0);
         }
 
-        // Was this the last frame? next valid frame cant be outside file size..
-        if(offsetToNextValidFrame >= m_FileSize) {
-          debug(LOG_VERBOSE) << "End of file at " << m_FileSize << std::endl;
-          reachedEndOfFrames = true;
-          break;
-        }
-
         CurrentHeaderOffset = offsetToNextValidFrame;
         m_FrameIndex++;
       }
 
-      // IF not end of file or last frame
-      if(!lastframe && !reachedEndOfFrames)
+      // IF we got here and it was NOT the last frame, the while looped exit becuse
+      // of an error
+      if(!lastframe)
         errors = true;
 
       // Stop on Error
@@ -363,12 +347,6 @@ void MP3::Analyze()
     }
   }
 
-
-  if(handle) {
-    snd_pcm_drain(handle);
-    snd_pcm_close(handle);
-  }
-
   // If offsetToEndOfAudioFrames is not 0, check for end tags att the remaining bytes of the file
   if(offsetToEndOfAudioFrames > 0)
     FindEndTags(offsetToEndOfAudioFrames);
@@ -377,8 +355,11 @@ void MP3::Analyze()
   // Found tags..
   if(id3v1_offset)
     debug(LOG_INFO) << "ID3v1 Tag Found at " << id3v1_offset << std::endl;
-  if(foundID3v2)
+  if(foundID3v2){
     debug(LOG_INFO) << "ID3v2 Tag Found at " << id3v2_offset << std::endl;
+    // id3v2->Render(cfg.loglevel);
+  }
+
   if(apev1_offset)
     debug(LOG_INFO) << "APEv1 Tag Found at " << apev1_offset << std::endl;
   if(foundAPEv2)
@@ -400,12 +381,15 @@ void MP3::Analyze()
   }
 
 
-
+  if(handle) {
+    snd_pcm_drain(handle);
+    snd_pcm_close(handle);
+  }
 }
 
 int MP3::InitializeHeader(FileWrapper* file) {
   // std::cout << "InitializeHeader @ " << CurrentHeaderOffset << " (hex: " << std::hex << CurrentHeaderOffset << std::dec << ")" << " Frame: " << m_FrameIndex << std::endl;
-  debug(LOG_VERBOSE) << CONSOLE_COLOR_GOLD << "InitializeHeader @ " << CurrentHeaderOffset << " (hex: " << std::hex << CurrentHeaderOffset << std::dec << ")" << "\033[0;0m" << std::endl;
+  debug(LOG_VERBOSE) << CONSOLE_COLOR_GOLD << "InitializeHeader @ " << CurrentHeaderOffset << " (hex: " << std::hex << CurrentHeaderOffset << std::dec << ")" << "\033[0;0m" << " Frame: " << m_FrameIndex << std::endl;
 
   mpegHeader.isHeaderValid = false;
 
@@ -448,8 +432,9 @@ int MP3::InitializeHeader(FileWrapper* file) {
   // CRC check
   bool checkCRC = false;
   std::vector<uint8_t> crc_checksum;
-  mpegHeader.protectionEnabled = !(static_cast<unsigned char>(data[1] & 0x01) == 0);
 
+  // Tricky, reading 0 actually means it has CRC
+  mpegHeader.protectionEnabled = (static_cast<unsigned char>(data[1] & 0x01) == 0);
 
   if(mpegHeader.protectionEnabled) {
     crc_checksum = file->readBlock(2);
@@ -503,40 +488,27 @@ int MP3::InitializeHeader(FileWrapper* file) {
 
 
 
-  // Check if this MPEG file have VBR (variable bit rate). If not,
-
   // Set the sample/frequency rate
+  static const int sampleRates[3][4] = {
+    { 44100, 48000, 32000, 0 }, // Version 1
+    { 22050, 24000, 16000, 0 }, // Version 2
+    { 11025, 12000, 8000,  0 }  // Version 2.5
+  };
 
-  // static const int sampleRates[3][4] = {
-  //   { 44100, 48000, 32000, 0 }, // Version 1
-  //   { 22050, 24000, 16000, 0 }, // Version 2
-  //   { 11025, 12000, 8000,  0 }  // Version 2.5
-  // };
-  //
-  // // The sample rate index is encoded as two bits in the 3nd byte, i.e. xxxx11xx
-  //
-  // const int samplerateIndex = (static_cast<unsigned char>(data[2]) >> 2) & 0x03;
-  // samplingRate = sampleRates[version][samplerateIndex];
+  // The sample rate index is encoded as two bits in the 3nd byte, i.e. xxxx11xx
 
-  int rates[3][3] {44100, 48000, 32000, 22050, 24000, 16000, 11025, 12000, 8000};
+  const int samplerateIndex = (static_cast<unsigned char>(data[2]) >> 2) & 0x03;
 
-	for (int rateversion = 1; rateversion <= 3; rateversion++)
-		if (mpegHeader.version == rateversion) {
-			if ((data[2] & 0x08) != 0x08 && (data[2] & 0x04) != 0x04) {
-				mpegHeader.samplingRate = rates[rateversion - 1][0];
-				break;
-			} else if ((data[2] & 0x08) != 0x08 && (data[2] & 0x04) == 0x04) {
-				mpegHeader.samplingRate = rates[rateversion - 1][1];
-				break;
-			} else if ((data[2] & 0x08) == 0x08 && (data[2] & 0x04) != 0x04) {
-				mpegHeader.samplingRate = rates[rateversion - 1][2];
-				break;
-			}
-		}
+  // Ugly.. i know
+  if(mpegHeader.version == 25)
+    mpegHeader.samplingRate = sampleRates[2][samplerateIndex];
+  else
+    mpegHeader.samplingRate = sampleRates[mpegHeader.version-1][samplerateIndex];
 
-  // Guessing sampleRate can never be 0
-  if(mpegHeader.samplingRate == 0) {
-    debug(LOG_ERROR) << "Error parsing sampleRate, sampleRate is zero"  << std::endl;
+
+
+  if(mpegHeader.samplingRate <= 0) {
+    debug(LOG_ERROR) << "Error parsing sampleRate"  << std::endl;
     // mpegerrortype = FRAMEHEADER;
     return 0;
   }
@@ -624,27 +596,28 @@ int MP3::InitializeHeader(FileWrapper* file) {
 		mpegFrame.prev_frame_size[i] = mpegFrame.prev_frame_size[i-1];
 	mpegFrame.prev_frame_size[0] = mpegFrame.frame_size;
 
+
   mpegFrame.frame_size = mpegHeader.samplesPerFrame * mpegHeader.bitrate * 125 / mpegHeader.samplingRate;
 
   if(mpegHeader.isPadded)
     mpegFrame.frame_size += paddingSize[layerIndex];
 
-  // debug(LOG_VERBOSE) << "->version (" << version << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->layer (" << layer << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->protectionEnabled (crc) (" << protectionEnabled << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->version (" << mpegHeader.version << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->layer (" << mpegHeader.layer << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->protectionEnabled (crc) (" << mpegHeader.protectionEnabled << ")" << std::endl;
   // debug(LOG_VERBOSE) << "- Info missing! -" << std::endl;
-  // debug(LOG_VERBOSE) << "->emphasis (" << emphasis << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->samplingRate (" << samplingRate << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->tables (" << band_index.short_win << "," << band_width.short_win <<
-  //                                     band_index.long_win << "," << band_width.long_win <<
+  // debug(LOG_VERBOSE) << "->emphasis (" << mpegHeader.emphasis << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->samplingRate (" << mpegHeader.samplingRate << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->tables (" << mpegHeader.band_index.short_win << "," << mpegHeader.band_width.short_win <<
+  //                                     mpegHeader.band_index.long_win << "," << mpegHeader.band_width.long_win <<
   //                                     " )" << std::endl;
   //
-  // debug(LOG_VERBOSE) << "->channel_mode (" << channel_mode << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->channels (" << channels << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->modeExtension (" << modeExtension[0] << "," << modeExtension[1] << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->isPadded (" << isPadded << ")" << std::endl;
-  // debug(LOG_VERBOSE) << "->bitrate (" << bitrate << "k)" << std::endl;
-  // debug(LOG_VERBOSE) << "->samplesPerFrame (" << samplesPerFrame << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->channel_mode (" << mpegHeader.channel_mode << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->channels (" << mpegHeader.channels << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->modeExtension (" << mpegHeader.modeExtension[0] << "," << mpegHeader.modeExtension[1] << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->isPadded (" << mpegHeader.isPadded << ")" << std::endl;
+  // debug(LOG_VERBOSE) << "->bitrate (" << mpegHeader.bitrate << "k)" << std::endl;
+  // debug(LOG_VERBOSE) << "->samplesPerFrame (" << mpegHeader.samplesPerFrame << ")" << std::endl;
   // debug(LOG_VERBOSE) << "->mpegFrame.frame_size (" << mpegFrame.frame_size << ")" << std::endl;
   //
   // // Not used by Floris
@@ -814,7 +787,7 @@ int MP3::InitializeHeader(FileWrapper* file) {
 
   // If the frame is bigger then the auctual file..
   if(CurrentHeaderOffset + mpegFrame.frame_size > m_FileSize) {
-    debug(LOG_ERROR) << "Last frame is truncated. Excpected " << mpegFrame.frame_size <<" bytes but is only " << m_FileSize - CurrentHeaderOffset << " bytes"<< std::endl;
+    debug(LOG_ERROR) << "Last frame is truncated. Frame (@" << CurrentHeaderOffset << ") size is " << mpegFrame.frame_size <<" bytes but only " << m_FileSize - CurrentHeaderOffset << " bytes is left of file"<< std::endl;
     lastframe = true;
     // mpegerrortype = TRUNCATED;
     return 0;
@@ -823,6 +796,7 @@ int MP3::InitializeHeader(FileWrapper* file) {
 
     // Check if there is room for a new header, if there is, check it
     if(CurrentHeaderOffset + mpegFrame.frame_size + 4 < m_FileSize) {
+      debug(LOG_VERBOSE) << "Checking next header at: " << CurrentHeaderOffset + mpegFrame.frame_size << std::endl;
 
       file->seek(CurrentHeaderOffset + mpegFrame.frame_size);
       const std::vector<uint8_t> nextData = file->readBlock(4);

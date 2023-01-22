@@ -25,6 +25,8 @@
 #define CONSOLE_COLOR_RED "\033[0;31m"
 #define CONSOLE_COLOR_GOLD "\033[0;33m"
 #define CONSOLE_COLOR_NORMAL "\033[0;0m"
+#define CONSOLE_COLOR_U "\33[0;36m"
+
 
 extern unsigned GlobalLogLevel;
 
